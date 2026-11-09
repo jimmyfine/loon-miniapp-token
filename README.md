@@ -16,7 +16,7 @@
 
 Loon → 插件 → + → 从 URL 添加，粘贴以下任一地址：
 
-- 国内加速：`https://cdn.jsdelivr.net/gh/jimmyfine/loon-miniapp-token@v1.1/miniapp-token.plugin`
+- 国内加速：`https://cdn.jsdelivr.net/gh/jimmyfine/loon-miniapp-token@6c92a309de67ba43e8f13be2d7cc32d2d4170128/miniapp-token.plugin`
 - GitHub：`https://raw.githubusercontent.com/jimmyfine/loon-miniapp-token/v1.1/miniapp-token.plugin`
 
 导入后在 Loon 配置文件的 `[Mitm]` 段 `hostname` 行追加目标小程序接口域名；也可以先把仓库里的 `miniapp-token.plugin` 改好域名，再用自己的地址导入。只添加小程序自己的业务接口域名，不要添加 `*.weixin.qq.com`、`*.wxs.qq.com` 等微信内部通道。确认 MITM 已开启、Loon CA 证书已信任。

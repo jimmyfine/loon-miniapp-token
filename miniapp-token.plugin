@@ -11,7 +11,7 @@ hostAllowlist = input,"*",type=string,tag=接口域名,desc=多个域名用英�
 debug = switch,false,type=boolean,tag=调试日志
 
 [Script]
-http-response ^https?:// script-path=https://cdn.jsdelivr.net/gh/jimmyfine/loon-miniapp-token@v1.1/miniapp-token.js, requires-body=true, binary-body-mode=true, timeout=10, argument=[{hostAllowlist},{debug}], tag=小程序 Token
+http-response ^https?:// script-path=https://cdn.jsdelivr.net/gh/jimmyfine/loon-miniapp-token@6c92a309de67ba43e8f13be2d7cc32d2d4170128/miniapp-token.js, requires-body=true, binary-body-mode=true, timeout=10, argument=[{hostAllowlist},{debug}], tag=小程序 Token
 
 # 也可以在 Loon 配置的 [Mitm] hostname 中追加实际接口域名，无需修改本插件
 # 只添加小程序自己的业务接口域名，不要添加 *.weixin.qq.com 等微信内部通道
