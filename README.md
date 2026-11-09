@@ -1,2 +1,79 @@
-# loon-miniapp-token
-Loon 插件：提取小程序接口 token 并发送通知
+# Loon 小程序 Token 提取
+
+读取已开启 MITM 的接口响应（JSON、表单）、URL 参数和请求/响应头，识别 token 字段；按域名和字段保存最新值，命中新值时发送 Loon 通知。点按通知可把完整 token 写入剪贴板。脚本只读取，始终 `$done({})`，不改写请求或响应。
+
+仓库：<https://github.com/jimmyfine/loon-miniapp-token>
+
+## 文件
+
+- `miniapp-token.plugin`：在线版插件，脚本从 jsDelivr 加载。
+- `miniapp-token-local.plugin`：本地版插件，引用同目录的 `miniapp-token.js`。
+- `miniapp-token.js`：提取脚本。
+
+## 安装
+
+### 在线
+
+Loon → 插件 → + → 从 URL 添加，粘贴以下任一地址：
+
+- 国内加速：`https://cdn.jsdelivr.net/gh/jimmyfine/loon-miniapp-token@main/miniapp-token.plugin`
+- GitHub：`https://raw.githubusercontent.com/jimmyfine/loon-miniapp-token/main/miniapp-token.plugin`
+
+导入后在 Loon 配置文件的 `[Mitm]` 段 `hostname` 行追加目标小程序接口域名；也可以先把仓库里的 `miniapp-token.plugin` 改好域名，再用自己的地址导入。确认 MITM 已开启、Loon CA 证书已信任。
+
+### 本地（Loon 3.2.0 及以上）
+
+1. 把 `miniapp-token.js` 放入 `iCloud Drive/Loon/Script/`，文件名保持不变。
+2. 编辑 `miniapp-token-local.plugin` 的 `[Mitm]`，把 `api.example.com` 换成小程序实际接口域名；多个域名用英文逗号分隔，支持 `*.example.com`。
+3. 把 `miniapp-token-local.plugin` 放入 `iCloud Drive/Loon/Plugins/`。
+4. 打开 Loon → 插件，启用“小程序 Token 提取”；确认 Loon CA 证书已安装并信任，MITM 开关已打开。
+
+### 找接口域名
+
+打开小程序时在 Loon 日志/请求记录中查看请求域名；只对接口域名开 MITM，不要覆盖整站或 CDN。
+
+## 配置
+
+修改 `miniapp-token.js` 顶部 `CONFIG`：
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `webhook` | 空 | 填写后把命中项 POST 为 JSON；留空只发通知 |
+| `extraKeys` | 空 | 额外识别的字段名，如 `["ticket", "sid"]`；默认匹配字段名含 `token` 的字符串字段和 `jwt` |
+| `minTokenLength` | 16 | 短于该长度的值不当作 token |
+| `notifyAll` | false | 一次响应有多个 token 时是否全部通知，默认只通知得分最高的一条 |
+| `notifyOnChangeOnly` | true | 相同值不重复通知 |
+| `captureRequestHeaders` | true | 同时检查请求头中的 Authorization、token 等 |
+| `showFullToken` | false | 通知正文显示掩码；设为 true 显示完整 token |
+| `debug` | false | 输出 `[miniapp-token]` 日志，便于在 Loon 日志中排查 |
+
+在线版脚本从 jsDelivr 加载，修改仓库后可能有缓存延迟；需要立即生效时使用本地版。
+
+Webhook 请求体：
+
+```json
+{
+  "source": "loon-miniapp-token",
+  "time": "2026-11-09T03:00:00.000Z",
+  "host": "api.example.com",
+  "url": "https://api.example.com/login",
+  "status": 200,
+  "tokens": [
+    { "field": "access_token", "value": "…", "source": "响应体" }
+  ]
+}
+```
+
+填写 webhook 时，该次接口响应会等待 webhook 返回或 3 秒超时后再放行；留空不产生额外延迟。
+
+## 使用
+
+打开目标小程序并触发登录或刷新接口。命中后收到标题为“小程序 Token”的通知，副标题为域名和字段名；点按通知后完整 token 在剪贴板。
+
+最新值保存在 Loon 本地存储键 `miniapp_token_store`，按“域名 + 字段”去重，最多保留 80 条。
+
+## 排查
+
+- 没有通知：MITM 域名与小程序接口域名不一致；MITM 未开启或证书未信任；小程序对接口启用了证书固定。
+- 有请求但没有命中：字段名不含 `token`，或值短于 16 字符；把字段名加入 `extraKeys`，或调低 `minTokenLength`。
+- 找不到接口域名：查看 Loon 日志/请求记录中打开小程序时的请求域名；只对接口域名开 MITM，不要覆盖整站或 CDN。
