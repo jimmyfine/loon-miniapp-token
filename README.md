@@ -8,6 +8,8 @@
 
 - `miniapp-token.plugin`：在线版插件，脚本从 jsDelivr 加载。
 - `miniapp-token-local.plugin`：本地版插件，引用同目录的 `miniapp-token.js`。
+- `chelaila-token.plugin`：互助小程序（AppID `wxa2fa5f1353d0adaa`）专用在线版，已写入业务域名。
+- `chelaila-token-local.plugin`：互助小程序专用本地版，引用同目录的 `miniapp-token.js`。
 - `miniapp-token.js`：提取脚本。
 
 ## 安装
@@ -22,6 +24,15 @@ Loon → 插件 → + → 从 URL 添加，粘贴以下任一地址：
 导入后在 Loon 配置文件的 `[Mitm]` 段 `hostname` 行追加目标小程序接口域名；也可以先把仓库里的 `miniapp-token.plugin` 改好域名，再用自己的地址导入。只添加小程序自己的业务接口域名，不要添加 `*.weixin.qq.com`、`*.wxs.qq.com` 等微信内部通道。确认 MITM 已开启、Loon CA 证书已信任。
 
 插件参数 `hostAllowlist` 可限制只处理哪些域名，默认 `*` 不限制；填写 `api.example.com,*.example.org` 后，其他已 MITM 的域名会被脚本直接跳过。
+
+### 互助小程序（AppID wxa2fa5f1353d0adaa）
+
+业务域名 `app-chelaila.52python.cn`，登录接口 `POST /shop/user/login`，token 在响应 `data.token`，后续请求放在 `token` 请求头。专用插件已写好域名和 MITM，直接导入即可：
+
+- 国内加速：`https://cdn.jsdelivr.net/gh/jimmyfine/loon-miniapp-token@6bd0c961e9d30c3f6a34f5109ceaf519effffbac/chelaila-token.plugin`
+- GitHub：`https://raw.githubusercontent.com/jimmyfine/loon-miniapp-token/6bd0c961e9d30c3f6a34f5109ceaf519effffbac/chelaila-token.plugin`
+
+启用后只保留这个专用插件，不要再同时启用通用插件；MITM 只保留 `app-chelaila.52python.cn`，移除 `*.weixin.qq.com`、`*.wxs.qq.com`。打开小程序触发任意接口即可；如果一直没有通知，在微信中删除该小程序（清除缓存）后重新打开，强制重新登录。
 
 ### 本地（Loon 3.2.0 及以上）
 
