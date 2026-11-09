@@ -15,8 +15,11 @@ var CONFIG = {
   showFullToken: false,
   storeKey: "miniapp_token_store",
   maxRecords: 80,
+  hostAllowlist: [],
   debug: false
 };
+
+var STATIC_URL_RE = /\.(?:png|jpe?g|gif|webp|svg|ico|css|woff2?|ttf|otf|eot|mp4|m4a|mp3|wav|ogg|webm|zip|gz|rar|7z|pdf|apk|ipa|dmg)(?:[?#]|$)/i;
 
 var EXCLUDED_KEYS = {
   tokentype: 1, tokenexpire: 1, tokenexpires: 1, tokenexpiresin: 1, tokenexpireat: 1,
@@ -56,6 +59,74 @@ function nowMs() {
 function getHost(url) {
   var match = /^https?:\/\/([^\/:?#]+)/i.exec(url || "");
   return match ? match[1].toLowerCase() : "";
+}
+
+function hostAllowed(host) {
+  if (!CONFIG.hostAllowlist.length) return true;
+  for (var i = 0; i < CONFIG.hostAllowlist.length; i++) {
+    var pattern = String(CONFIG.hostAllowlist[i]).toLowerCase();
+    if (!pattern) continue;
+    if (pattern === "*" || pattern === host) return true;
+    if (pattern.indexOf("*.") === 0) {
+      var suffix = pattern.slice(1);
+      if (host.length > suffix.length && host.slice(-suffix.length) === suffix) return true;
+    }
+  }
+  return false;
+}
+
+function isInternalHost(host) {
+  return /(^|\.)(?:weixin\.qq\.com|wxs\.qq\.com)$/.test(host);
+}
+
+function isStaticUrl(url) {
+  return STATIC_URL_RE.test(url);
+}
+
+function parsePlainArguments(text) {
+  var result = {};
+  var pairs = String(text).split("&");
+  for (var i = 0; i < pairs.length; i++) {
+    var eq = pairs[i].indexOf("=");
+    if (eq < 0) {
+      if (pairs[i]) result[pairs[i]] = "";
+      continue;
+    }
+    var key = pairs[i].slice(0, eq);
+    var value = pairs[i].slice(eq + 1);
+    try { key = decodeURIComponent(key); } catch (e) {}
+    try { value = decodeURIComponent(value); } catch (e2) {}
+    if (key) result[key] = value;
+  }
+  return result;
+}
+
+function applyArguments() {
+  var args = typeof $argument !== "undefined" ? $argument : null;
+  if (!args) return;
+  if (typeof args === "string") {
+    var text = args.trim();
+    if (text.charAt(0) === "{") {
+      try { args = JSON.parse(text); } catch (e) { return; }
+    } else {
+      args = parsePlainArguments(text);
+    }
+  }
+  if (!args || typeof args !== "object") return;
+  if (typeof args.hostAllowlist !== "undefined") {
+    var raw = String(args.hostAllowlist).trim();
+    var list = [];
+    if (raw && raw !== "*") {
+      var parts = raw.split(/[\s,;]+/);
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i]) list.push(parts[i].toLowerCase());
+      }
+    }
+    CONFIG.hostAllowlist = list;
+  }
+  if (typeof args.debug !== "undefined") {
+    CONFIG.debug = String(args.debug).toLowerCase() === "true";
+  }
 }
 
 function normalizeKey(key) {
@@ -176,8 +247,143 @@ function collectJson(node, hits, depth, counter) {
   }
 }
 
+function isByteArray(value) {
+  if (!value || typeof value !== "object") return false;
+  if (typeof Uint8Array !== "undefined" && value instanceof Uint8Array) return true;
+  if (typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer) return true;
+  return typeof value.byteLength === "number" && typeof value.length === "number" && !Array.isArray(value);
+}
+
+function toBytes(value) {
+  if (!value || typeof value !== "object") return null;
+  if (typeof Uint8Array !== "undefined" && value instanceof Uint8Array) return value;
+  if (typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer) return new Uint8Array(value);
+  return typeof value.length === "number" ? value : null;
+}
+
+function sliceBytes(bytes, limit) {
+  if (typeof bytes.subarray === "function") return bytes.subarray(0, limit);
+  if (typeof bytes.slice === "function") return bytes.slice(0, limit);
+  var result = [];
+  for (var i = 0; i < limit && i < bytes.length; i++) result.push(bytes[i]);
+  return result;
+}
+
+function isTextualContentType(contentType) {
+  var text = String(contentType || "").toLowerCase();
+  if (!text) return false;
+  return text.indexOf("json") >= 0 || text.indexOf("text/") >= 0 ||
+    text.indexOf("javascript") >= 0 || text.indexOf("xml") >= 0 ||
+    text.indexOf("x-www-form-urlencoded") >= 0 || text.indexOf("graphql") >= 0;
+}
+
+function isBinaryContentType(contentType) {
+  var text = String(contentType || "").toLowerCase();
+  if (!text) return false;
+  return /^(?:image|audio|video|font)\//.test(text) ||
+    text.indexOf("octet-stream") >= 0 || text.indexOf("protobuf") >= 0 ||
+    text.indexOf("msgpack") >= 0 || text.indexOf("pdf") >= 0 ||
+    text.indexOf("zip") >= 0;
+}
+
+function bodyLooksTextual(bytes, contentType) {
+  if (isBinaryContentType(contentType)) return false;
+  var scan = Math.min(bytes.length, 64);
+  var index = 0;
+  while (index < scan) {
+    var b = bytes[index] & 255;
+    if (b === 0) return false;
+    if (b === 9 || b === 10 || b === 13 || b === 32) {
+      index++;
+      continue;
+    }
+    break;
+  }
+  if (index >= bytes.length) return false;
+  if (isTextualContentType(contentType)) return true;
+  var head = bytes[index] & 255;
+  return head === 0x7b || head === 0x5b || head === 0x22;
+}
+
+function codePointsToString(points) {
+  var out = "";
+  var chunk = [];
+  for (var i = 0; i < points.length; i++) {
+    var cp = points[i];
+    if (cp > 0xffff) {
+      cp -= 0x10000;
+      chunk.push(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff));
+    } else {
+      chunk.push(cp);
+    }
+    if (chunk.length >= 2048) {
+      out += String.fromCharCode.apply(null, chunk);
+      chunk = [];
+    }
+  }
+  if (chunk.length) out += String.fromCharCode.apply(null, chunk);
+  return out;
+}
+
+function decodeUtf8(bytes) {
+  var points = [];
+  var length = bytes.length;
+  var i = 0;
+  while (i < length) {
+    var b0 = bytes[i] & 255;
+    if (b0 < 0x80) {
+      points.push(b0);
+      i++;
+      continue;
+    }
+    if (b0 >= 0xc2 && b0 <= 0xdf) {
+      var b1 = i + 1 < length ? bytes[i + 1] & 255 : -1;
+      if (b1 >= 0x80 && b1 <= 0xbf) {
+        points.push(((b0 & 0x1f) << 6) | (b1 & 0x3f));
+        i += 2;
+        continue;
+      }
+    } else if (b0 >= 0xe0 && b0 <= 0xef) {
+      var b2 = i + 1 < length ? bytes[i + 1] & 255 : -1;
+      var b3 = i + 2 < length ? bytes[i + 2] & 255 : -1;
+      if (b2 >= 0x80 && b2 <= 0xbf && b3 >= 0x80 && b3 <= 0xbf) {
+        var cp3 = ((b0 & 0x0f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+        if (cp3 >= 0x800) {
+          points.push(cp3);
+          i += 3;
+          continue;
+        }
+      }
+    } else if (b0 >= 0xf0 && b0 <= 0xf4) {
+      var b4 = i + 1 < length ? bytes[i + 1] & 255 : -1;
+      var b5 = i + 2 < length ? bytes[i + 2] & 255 : -1;
+      var b6 = i + 3 < length ? bytes[i + 3] & 255 : -1;
+      if (b4 >= 0x80 && b4 <= 0xbf && b5 >= 0x80 && b5 <= 0xbf && b6 >= 0x80 && b6 <= 0xbf) {
+        var cp4 = ((b0 & 0x07) << 18) | ((b4 & 0x3f) << 12) | ((b5 & 0x3f) << 6) | (b6 & 0x3f);
+        if (cp4 >= 0x10000 && cp4 <= 0x10ffff) {
+          points.push(cp4);
+          i += 4;
+          continue;
+        }
+      }
+    }
+    points.push(0xfffd);
+    i++;
+  }
+  return codePointsToString(points);
+}
+
 function collectBody(response, hits) {
   var body = response.body;
+  if (body === null || typeof body === "undefined") return;
+  var contentType = String(getHeader(response.headers, "content-type") || "");
+  if (isByteArray(body)) {
+    var bytes = toBytes(body);
+    if (!bytes || !bytes.length) return;
+    if (bytes.length > 1048576) bytes = sliceBytes(bytes, 1048576);
+    if (!bodyLooksTextual(bytes, contentType)) return;
+    body = decodeUtf8(bytes);
+  }
   if (typeof body !== "string" || !body) return;
   if (body.length > 1048576) body = body.slice(0, 1048576);
   var text = body.trim();
@@ -194,8 +400,7 @@ function collectBody(response, hits) {
     collectJson(data, hits, 0, { count: 0 });
     return;
   }
-  var contentType = String(getHeader(response.headers, "content-type") || "").toLowerCase();
-  if (contentType.indexOf("x-www-form-urlencoded") >= 0) collectForm(text, hits);
+  if (contentType.toLowerCase().indexOf("x-www-form-urlencoded") >= 0) collectForm(text, hits);
 }
 
 function uniqueHits(hits) {
@@ -304,11 +509,17 @@ function postWebhook(host, url, response, fresh) {
 }
 
 function main() {
+  applyArguments();
   var request = $request || {};
   var response = typeof $response !== "undefined" && $response ? $response : null;
   var url = request.url || "";
   var host = getHost(url);
   if (!host) {
+    finish();
+    return;
+  }
+  if (!hostAllowed(host) || isInternalHost(host) || isStaticUrl(url) || /\/mmtls(?:\/|$)/i.test(url)) {
+    debugLog("skip", host, url);
     finish();
     return;
   }
