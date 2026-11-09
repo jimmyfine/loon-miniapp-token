@@ -1,0 +1,18 @@
+#!name = 互助小程序 Token 提取（本地）
+#!desc = 读取 app-chelaila.52python.cn 的登录与接口响应，发现 token 后发送 Loon 通知，不改写流量
+#!author = Qoder
+#!date = 2026-11-09
+#!tag = 工具
+#!system = iOS,iPadOS
+
+[Argument]
+# 只处理该小程序业务域名，多个用英文逗号分隔，支持 *.example.com；* 表示不限制
+hostAllowlist = input,"app-chelaila.52python.cn",type=string,tag=接口域名,desc=仅处理该域名，多个用英文逗号分隔
+debug = switch,false,type=boolean,tag=调试日志
+
+[Script]
+http-response ^https?://app-chelaila\.52python\.cn(?:/|$) script-path=miniapp-token.js, requires-body=true, binary-body-mode=true, timeout=10, argument=[{hostAllowlist},{debug}], tag=小程序 Token
+
+# AppID wxa2fa5f1353d0adaa 的业务接口域名
+[Mitm]
+hostname = %APPEND% app-chelaila.52python.cn
