@@ -1,8 +1,8 @@
 #!name=云麦好轻去广告
-#!desc=屏蔽云麦好轻 App 内广告：自营开屏/横幅/信息流/轮播/弹窗、顺昌智行广告中介、TopOn 聚合、穿山甲，及埋点上报。基于 2026-11-13 抓包（366 条请求）分析制作。
+#!desc=屏蔽云麦好轻 App 内广告并净化页面：自营开屏/横幅/信息流/轮播/弹窗、顺昌智行广告中介、TopOn 聚合、穿山甲，及埋点上报；隐藏小轻AI入口、去掉首页购物模块、清空发现页内容、屏蔽有赞商城。基于 2026-11-13 抓包（366 条请求）分析制作。
 #!author=Rockey
 #!homepage=https://github.com/jimmyfine/loon-miniapp-token
-#!version=1.0.0
+#!version=1.1.0
 #!date=2026-11-13
 
 # ============================================================
@@ -24,11 +24,20 @@
 #  - 第三方广告/中介域名整域拒绝（REJECT），不需要 MitM；
 #  - 埋点上报域名拒绝，不影响称重、同步、设备等核心功能。
 #
+# v1.1.0 净化（需配合 YunmaiPurify.js 脚本）：
+#  - 小轻AI：aiHelper/getSetting 由脚本返回 success:false，隐藏 AI 入口
+#    （入口是否显示由服务端配置驱动；若装上后入口还在，告诉我，我再改方案）
+#  - 首页「便宜好货」购物模块（moduleType 210）：由脚本从首页模块列表里去掉
+#  - 首页「中部菜单」：center_menu.json 返回 {}（你抓包工具里已是这么配的）
+#  - 发现页：/community/ios/ 接口由脚本返回规整空数据，点进去是空列表
+#  - 商城：有赞整站（youzan.com / yzcdn.cn / youzanyun.com）拒绝，点进去打不开
+#  - 注意：底部导航栏的「发现」「商城」两个 Tab 本身是 App 原生写死的，
+#    抓包里没有任何服务端配置能控制它，Loon 去不掉 Tab，只能让点进去是空的。
+#
 # 注意：
-#  - REJECT-DICT / REJECT-IMG 需要 MitM，下面 [Mitm] 已列出对应域名，
-#    导入插件后按 Loon 提示安装并信任证书即可；
-#  - 推送（个推/极光）和有赞商城进店弹窗默认是注释掉的，按需放开，
-#    说明见文件末尾。
+#  - REJECT-DICT / REJECT-IMG 和 [Script] 都需要 MitM，下面 [Mitm] 已列出
+#    对应域名，导入插件后按 Loon 提示安装并信任证书即可；
+#  - 推送（个推/极光）默认是注释掉的，按需放开，说明见文件末尾。
 # ============================================================
 
 [Rule]
@@ -37,6 +46,8 @@ URL-REGEX,^https?://restapi\.iyunmai\.com/(ad-api|api/ios/ad|appapi/ios/ad|commu
 URL-REGEX,^https?://sq\.iyunmai\.com/api/ios/adlunbo/,REJECT-DICT
 URL-REGEX,^https?://yunmai\.sfo-tx-beijing-02\.saas\.sensorsdata\.cn/api/v2/sfo/user_popup_configs,REJECT-DICT
 URL-REGEX,^https?://images\.iyunmai\.com/ads/,REJECT-IMG
+# 首页「中部菜单」：返回 {}（和你抓包工具里已在用的替换一致）
+URL-REGEX,^https?://apisvr\.iyunmai\.com/api/ios/first-page-module/center_menu\.json,REJECT-DICT
 
 # ---------- 二、顺昌智行广告中介 ----------
 DOMAIN-SUFFIX,shunchangzhixing.com,REJECT
@@ -61,14 +72,24 @@ DOMAIN-SUFFIX,tj1.youzanyun.com,REJECT
 DOMAIN-SUFFIX,probe.youzan.com,REJECT
 DOMAIN-SUFFIX,ali-stats.jpush.cn,REJECT
 
-# ---------- 六、可选：推送相关（默认注释，放开后可能收不到推送通知） ----------
+# ---------- 六、商城：有赞整站屏蔽（点商城 Tab 会打不开） ----------
+DOMAIN-SUFFIX,youzan.com,REJECT
+DOMAIN-SUFFIX,yzcdn.cn,REJECT
+DOMAIN-SUFFIX,youzanyun.com,REJECT
+
+# ---------- 七、可选：推送相关（默认注释，放开后可能收不到推送通知） ----------
 # DOMAIN-SUFFIX,getui.net,REJECT
 # DOMAIN-SUFFIX,jpush.cn,REJECT
 # DOMAIN-SUFFIX,smartop-sdkapi.jiguang.cn,REJECT
 # DOMAIN-SUFFIX,sdk-open-phone.getui.com,REJECT
 
-# ---------- 七、可选：有赞商城进店弹窗（默认注释，{} 可能影响商城进店流程） ----------
-# URL-REGEX,^https?://shop40317240\.m\.youzan\.com/wscshop/shopad/pop-config-with-keys\.json,REJECT-DICT
+[Script]
+# 小轻AI入口隐藏
+http-response ^https?://ai-assistant\.iyunmai\.com/assistantapi/ios/aiHelper/getSetting\.json requires-body=1, script-path=https://raw.githubusercontent.com/jimmyfine/loon-miniapp-token/refs/heads/main/YunmaiPurify.js, tag=小轻AI隐藏
+# 首页去掉「便宜好货」购物模块
+http-response ^https?://apisvr\.iyunmai\.com/api/ios/first-page-module/v3/get\.json requires-body=1, script-path=https://raw.githubusercontent.com/jimmyfine/loon-miniapp-token/refs/heads/main/YunmaiPurify.js, tag=首页去购物模块
+# 发现页内容清空
+http-response ^https?://restapi\.iyunmai\.com/community/ios/ requires-body=1, script-path=https://raw.githubusercontent.com/jimmyfine/loon-miniapp-token/refs/heads/main/YunmaiPurify.js, tag=发现页清空
 
 [Mitm]
-hostname = restapi.iyunmai.com, sq.iyunmai.com, images.iyunmai.com, yunmai.sfo-tx-beijing-02.saas.sensorsdata.cn
+hostname = restapi.iyunmai.com, sq.iyunmai.com, images.iyunmai.com, yunmai.sfo-tx-beijing-02.saas.sensorsdata.cn, ai-assistant.iyunmai.com, apisvr.iyunmai.com
