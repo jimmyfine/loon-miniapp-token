@@ -3,7 +3,7 @@
 #!author=Rockey
 #!icon=http://file.market.xiaomi.com/thumbnail/PNG/l114/AppStore/04ca322cb23664c8ea65521d905abe1196ad7307e
 #!homepage=https://github.com/jimmyfine/loon-miniapp-token
-#!version=1.0.0
+#!version=1.0.1
 #!date=2026-11-13
 
 # ============================================================
@@ -34,6 +34,7 @@
 # 备注：v1.1.0 / v1.1.1 的净化改动（小轻AI、发现页、商城、首页购物模块）
 #  因小轻AI屏蔽无效，已于 2026-11-13 按用户要求全部撤销，仅保留本第一版；
 #  图标已换成好轻 App 官方图标。
+# v1.0.1：补漏下拉双11活动（见下方「八」）。
 # ============================================================
 
 [Rule]
@@ -74,6 +75,15 @@ DOMAIN-SUFFIX,ali-stats.jpush.cn,REJECT
 
 # ---------- 七、可选：有赞商城进店弹窗（默认注释，{} 可能影响商城进店流程） ----------
 # URL-REGEX,^https?://shop40317240\.m\.youzan\.com/wscshop/shopad/pop-config-with-keys\.json,REJECT-DICT
+
+# ---------- 八、双11下拉活动补漏（v1.0.1，纯规则、无脚本） ----------
+# 下拉广告 homePull 本身已在上面第一条规则里（listByPositions），这里补之前漏掉的两处：
+# 悬浮/停靠入口 list_dock.json（position=home 的「双十一年卡」，每 8 小时弹一次）
+URL-REGEX,^https?://restapi\.iyunmai\.com/appapi/ios/tips/list_dock\.json(\?|$),REJECT-DICT
+# 活动列表里的「双十一年卡福利」（整条清空，免费领会员、瘦身打卡那两个活动也会一起没了）
+URL-REGEX,^https?://restapi\.iyunmai\.com/activity/ios/list_home\.json(\?|$),REJECT-DICT
+# 双11活动页本身（从别处点进去也打不开）
+URL-REGEX,^https?://sq\.iyunmai\.com/activity/doubleEleven-2026/,REJECT
 
 [Mitm]
 hostname = restapi.iyunmai.com, sq.iyunmai.com, images.iyunmai.com, yunmai.sfo-tx-beijing-02.saas.sensorsdata.cn
