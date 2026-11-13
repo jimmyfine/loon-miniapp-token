@@ -1,0 +1,74 @@
+#!name=云麦好轻去广告
+#!desc=屏蔽云麦好轻 App 内广告：自营开屏/横幅/信息流/轮播/弹窗、顺昌智行广告中介、TopOn 聚合、穿山甲，及埋点上报。基于 2026-11-13 抓包（366 条请求）分析制作。
+#!author=Rockey
+#!homepage=https://github.com/jimmyfine/loon-miniapp-token
+#!version=1.0.0
+#!date=2026-11-13
+
+# ============================================================
+# 云麦好轻去广告 for Loon
+#
+# 抓包分析（2026-11-13，云麦好轻 iOS 5.6.5，共 366 条请求）：
+#  App 内广告分四层：
+#   1. 云麦自营广告接口 restapi.iyunmai.com：开屏 launcher、横幅 banner、
+#      信息流 feed、广告配置 getAdSetting、个人中心/首页/称重页 listByPosition(s)、
+#      社区广告 commentsHome；轮播 sq.iyunmai.com/adlunbo；广告图 images.iyunmai.com/ads/
+#   2. 顺昌智行广告中介 ad/inner/static.shunchangzhixing.com（好轻_iOS-jg，appid 221543）
+#   3. TopOn 聚合广告 anythinktech.com / toponad.com（SDK 版本 UA 6.5.73）
+#   4. 穿山甲 statisticslinks.com
+#  另有神策弹窗配置 user_popup_configs（运营弹窗）。
+#
+# 做法：
+#  - 自营广告接口返回空 JSON {}（REJECT-DICT），和你现在抓包工具里已在用的
+#    {} 替换完全一致，App 能正常处理，不会闪退；
+#  - 第三方广告/中介域名整域拒绝（REJECT），不需要 MitM；
+#  - 埋点上报域名拒绝，不影响称重、同步、设备等核心功能。
+#
+# 注意：
+#  - REJECT-DICT / REJECT-IMG 需要 MitM，下面 [Mitm] 已列出对应域名，
+#    导入插件后按 Loon 提示安装并信任证书即可；
+#  - 推送（个推/极光）和有赞商城进店弹窗默认是注释掉的，按需放开，
+#    说明见文件末尾。
+# ============================================================
+
+[Rule]
+# ---------- 一、云麦自营广告接口：返回空 JSON {} ----------
+URL-REGEX,^https?://restapi\.iyunmai\.com/(ad-api|api/ios/ad|appapi/ios/ad|community/ios/ad)/,REJECT-DICT
+URL-REGEX,^https?://sq\.iyunmai\.com/api/ios/adlunbo/,REJECT-DICT
+URL-REGEX,^https?://yunmai\.sfo-tx-beijing-02\.saas\.sensorsdata\.cn/api/v2/sfo/user_popup_configs,REJECT-DICT
+URL-REGEX,^https?://images\.iyunmai\.com/ads/,REJECT-IMG
+
+# ---------- 二、顺昌智行广告中介 ----------
+DOMAIN-SUFFIX,shunchangzhixing.com,REJECT
+
+# ---------- 三、TopOn 聚合广告 ----------
+DOMAIN-SUFFIX,anythinktech.com,REJECT
+DOMAIN-SUFFIX,toponad.com,REJECT
+
+# ---------- 四、穿山甲 ----------
+DOMAIN-SUFFIX,statisticslinks.com,REJECT
+
+# ---------- 五、埋点 / 统计上报（不影响核心功能） ----------
+DOMAIN-SUFFIX,api-analysis.iyunmai.com,REJECT
+DOMAIN-SUFFIX,ulogs.umeng.com,REJECT
+DOMAIN-SUFFIX,utoken.umeng.com,REJECT
+DOMAIN-SUFFIX,hm.baidu.com,REJECT
+DOMAIN-SUFFIX,ios.bugly.qq.com,REJECT
+DOMAIN-SUFFIX,api-app-sslink.lixiang.com,REJECT
+DOMAIN-SUFFIX,tj.youzan.com,REJECT
+DOMAIN-SUFFIX,tj1.youzan.com,REJECT
+DOMAIN-SUFFIX,tj1.youzanyun.com,REJECT
+DOMAIN-SUFFIX,probe.youzan.com,REJECT
+DOMAIN-SUFFIX,ali-stats.jpush.cn,REJECT
+
+# ---------- 六、可选：推送相关（默认注释，放开后可能收不到推送通知） ----------
+# DOMAIN-SUFFIX,getui.net,REJECT
+# DOMAIN-SUFFIX,jpush.cn,REJECT
+# DOMAIN-SUFFIX,smartop-sdkapi.jiguang.cn,REJECT
+# DOMAIN-SUFFIX,sdk-open-phone.getui.com,REJECT
+
+# ---------- 七、可选：有赞商城进店弹窗（默认注释，{} 可能影响商城进店流程） ----------
+# URL-REGEX,^https?://shop40317240\.m\.youzan\.com/wscshop/shopad/pop-config-with-keys\.json,REJECT-DICT
+
+[Mitm]
+hostname = restapi.iyunmai.com, sq.iyunmai.com, images.iyunmai.com, yunmai.sfo-tx-beijing-02.saas.sensorsdata.cn
